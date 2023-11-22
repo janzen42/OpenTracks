@@ -1,5 +1,6 @@
 package de.dennisguse.opentracks.settings.bluetooth;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
@@ -21,7 +22,6 @@ import androidx.preference.PreferenceDialogFragmentCompat;
 import androidx.vectordrawable.graphics.drawable.AnimatedVectorDrawableCompat;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,13 +35,17 @@ import de.dennisguse.opentracks.util.PermissionRequester;
  * Preference to select a discoverable Bluetooth LE device.
  * Based upon ListPreference.
  */
+@SuppressLint("MissingPermission")
 public abstract class BluetoothLeSensorPreference extends DialogPreference {
 
     private static final String TAG = BluetoothLeSensorPreference.class.getSimpleName();
 
     private static final String ARG_BLE_SERVICE_UUIDS = "bluetoothUUID";
+    private static final String ARG_INCLUDE_INTERNAL = "supportsInternal";
 
     private static final int DEVICE_NONE_RESOURCEID = R.string.value_none;
+
+    private static final int SENSOR_INTERNAL_RESOURCEID = R.string.value_internal_sensor;
 
     public BluetoothLeSensorPreference(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
@@ -62,11 +66,7 @@ public abstract class BluetoothLeSensorPreference extends DialogPreference {
     private String value;
     private boolean valueSet = false;
 
-    public String getValue() {
-        return value;
-    }
-
-    public void setValue(String value) {
+    private void setValue(String value) {
         final boolean changed = !TextUtils.equals(this.value, value);
         if (changed || !valueSet) {
             this.value = value;
@@ -85,11 +85,14 @@ public abstract class BluetoothLeSensorPreference extends DialogPreference {
 
     @Override
     public CharSequence getSummary() {
-        if (getValue() == null || PreferencesUtils.isBluetoothSensorAddressNone(getValue())) {
+        if (value == null || PreferencesUtils.isBluetoothSensorAddressNone(value)) {
             return getContext().getString(DEVICE_NONE_RESOURCEID);
         }
+        if (PreferencesUtils.isBluetoothSensorAddressInternal(value)) {
+            return getContext().getString(SENSOR_INTERNAL_RESOURCEID);
+        }
 
-        return getValue();
+        return value;
     }
 
     public abstract PreferenceDialogFragmentCompat createInstance();
@@ -125,11 +128,11 @@ public abstract class BluetoothLeSensorPreference extends DialogPreference {
             }
         };
 
-        public static BluetoothLeSensorPreferenceDialog newInstance(String preferenceKey, ServiceMeasurementUUID sensorUUID) {
-            return newInstance(preferenceKey, Collections.singletonList(sensorUUID));
+        public static BluetoothLeSensorPreferenceDialog newInstance(String preferenceKey, List<ServiceMeasurementUUID> sensorUUIDs) {
+            return newInstance(preferenceKey, sensorUUIDs, false);
         }
 
-        public static BluetoothLeSensorPreferenceDialog newInstance(String preferenceKey, List<ServiceMeasurementUUID> sensorUUIDs) {
+        public static BluetoothLeSensorPreferenceDialog newInstance(String preferenceKey, List<ServiceMeasurementUUID> sensorUUIDs, boolean includeInternalSensor) {
             final BluetoothLeSensorPreferenceDialog fragment = new BluetoothLeSensorPreferenceDialog();
             final Bundle b = new Bundle(1);
             b.putString(ARG_KEY, preferenceKey);
@@ -137,6 +140,8 @@ public abstract class BluetoothLeSensorPreference extends DialogPreference {
                     .map(ServiceMeasurementUUID::serviceUUID)
                     .map(ParcelUuid::new)
                     .collect(Collectors.toList())));
+            b.putBoolean(ARG_INCLUDE_INTERNAL, includeInternalSensor);
+
             fragment.setArguments(b);
             return fragment;
         }
@@ -166,6 +171,7 @@ public abstract class BluetoothLeSensorPreference extends DialogPreference {
 
         private void startBluetoothScan() {
             List<ParcelUuid> serviceUUIDs = getArguments().getParcelableArrayList(ARG_BLE_SERVICE_UUIDS);
+            boolean includeInternalSensor = getArguments().getBoolean(ARG_INCLUDE_INTERNAL);
 
             BluetoothAdapter bluetoothAdapter = BluetoothUtils.getAdapter(getContext());
             if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
@@ -188,14 +194,23 @@ public abstract class BluetoothLeSensorPreference extends DialogPreference {
             }
 
             String deviceNone = getContext().getString(R.string.sensor_type_value_none);
+            String sensorInternal = getString(R.string.sensor_type_value_internal);
+
             listAdapter.add(getContext().getString(DEVICE_NONE_RESOURCEID), deviceNone);
             selectedEntryIndex = 0;
 
             BluetoothLeSensorPreference preference = (BluetoothLeSensorPreference) getPreference();
-            String deviceSelected = preference.getValue();
-            if (deviceSelected != null && !deviceNone.equals(deviceSelected)) {
-                listAdapter.add(preference.getValue(), preference.getValue());
-                selectedEntryIndex = 1;
+            String deviceSelected = preference.value;
+            if (includeInternalSensor) {
+                listAdapter.add(getString(SENSOR_INTERNAL_RESOURCEID), sensorInternal);
+                if (sensorInternal.equals(deviceSelected)) {
+                    selectedEntryIndex = 1;
+                }
+            }
+
+            if (deviceSelected != null && !deviceNone.equals(deviceSelected) && !sensorInternal.equals(deviceSelected)) {
+                listAdapter.add(preference.value, preference.value);
+                selectedEntryIndex++;
             }
 
             List<ScanFilter> scanFilter = null;
