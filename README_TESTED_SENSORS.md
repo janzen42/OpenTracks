@@ -27,12 +27,13 @@ However, often only one value is provided.
 * Garmin Speed Sensor 2
   * Has updatable firmware that requires an account for garmin.com
 * Wahoo Speed (Model: WFRPMSPD)
-* CooSpo cadence and speed sensor (model: BK467)
+* CooSpo Speed/Cadence Sensor (model: BK467)
 
 ### Cadence only
 
 * Garmin Cadence Sensor 2
 * Wahoo Cadence (Model: WFPODCAD2)
+* CooSpo Speed/Cadence Sensor (model: BK467)
 
 ## 0x1818: Power Measurement
 
